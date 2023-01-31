@@ -21,31 +21,33 @@ import argparse
 
 
 parser = argparse.ArgumentParser(description='Distance to the center of the lane')
-parser.add_argument("lane_center_dist")
-parser.add_argument('--images', '--i', help='computes distance to the center of the lane in input images')
+parser.add_argument("car_position")
+parser.add_argument('--images', '--i', help='computes distance to the center of the lane and the relative angle for input images')
 args = parser.parse_args()
 
 
-# In[147]:
+# In[18]:
 
 
-image = io.imread('images/test_image_2.png')
+image = io.imread('images/test_image_9.png')
 plt.imshow(image)
 
 
-# In[35]:
+# In[2]:
 
 
 # define constants
 # horizontal_dim = image.shape[1]
 bright_high = 180
 bright_low = 160
-normal = 130
+normal = 110
+normal_low = 70
 dark_high = 45
 dark_low = 35
+car_direction = np.pi / 2
 
 
-# In[4]:
+# In[3]:
 
 
 # to draw lines on the image
@@ -54,7 +56,7 @@ def add_weights(image, initial_image, alpha=0.8, beta=1, lambd=0):
     return weighted_image
 
 
-# In[5]:
+# In[4]:
 
 
 # to get the lanes on the region of interest
@@ -70,7 +72,7 @@ def get_region_of_interest(edges, vertices):
     return masked_image
 
 
-# In[6]:
+# In[5]:
 
 
 # to make lines out of identified edges
@@ -84,12 +86,12 @@ def get_hough_lines(image, rho, theta, treshold, min_line_len, max_line_gap):
         merged_lines.append([[line[0][0], line[0][1], line[1][0], line[1][1]]])
     merged_lines = np.array(merged_lines)
     # here the merge for multiple lines is run and I output their coordinates
-#     print('Merged lines:', merged_lines)
-    car_offset = draw_lines(line_img, merged_lines)
-    return line_img, car_offset
+    # print('Merged lines:', merged_lines)
+    car_offset, angle = draw_lines(line_img, merged_lines)
+    return line_img, car_offset, angle
 
 
-# In[7]:
+# In[6]:
 
 
 # here starts code for line merging
@@ -125,7 +127,7 @@ def process_lines(lines):
     return merged_lines_all
 
 
-# In[8]:
+# In[7]:
 
 
 def merge_lines_pipeline_2(lines):
@@ -186,7 +188,7 @@ def merge_lines_pipeline_2(lines):
     return super_lines_final
 
 
-# In[9]:
+# In[8]:
 
 
 def merge_lines_segments1(lines, use_log=False):
@@ -221,7 +223,7 @@ def merge_lines_segments1(lines, use_log=False):
     return [points[0], points[len(points)-1]]
 
 
-# In[10]:
+# In[9]:
 
 
 # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
@@ -238,7 +240,7 @@ def lines_close(line1, line2):
         return False
 
 
-# In[11]:
+# In[10]:
 
 
 def lineMagnitude (x1, y1, x2, y2):
@@ -246,7 +248,7 @@ def lineMagnitude (x1, y1, x2, y2):
     return lineMagnitude
 
 
-# In[12]:
+# In[11]:
 
 
 def DistancePointLine(px, py, x1, y1, x2, y2):
@@ -274,7 +276,7 @@ def DistancePointLine(px, py, x1, y1, x2, y2):
     return DistancePointLine
 
 
-# In[13]:
+# In[12]:
 
 
 def get_distance(line1, line2):
@@ -291,7 +293,7 @@ def get_distance(line1, line2):
     return min(dist1,dist2,dist3,dist4)
 
 
-# In[14]:
+# In[13]:
 
 
 # the coordinates for the line are calculated and drawn on the image
@@ -354,6 +356,8 @@ def draw_lines(image, lines, color=(255, 0, 0), thickness=10):
         y2_right = first_shape
         
     x_middle = (x2_right - x2_left) / 2 + x2_left
+    angle = (abs(np.arctan2(y2_right - y1_right, x2_right - x1_right)) + 
+            abs(np.arctan2(y2_left - y1_left, x2_left - x1_left))) / 2
     
     new_image = np.array([x1_left, y1_left, x2_left, y2_left, x1_right, y1_right, x2_right, y2_right], dtype="float32")
     # just to know final lines coordinates
@@ -364,10 +368,10 @@ def draw_lines(image, lines, color=(255, 0, 0), thickness=10):
     cv2.line(image, (int(new_image[0]), int(new_image[1])), (int(new_image[2]), int(new_image[3])), color, thickness)
     cv2.line(image, (int(new_image[4]), int(new_image[5])), (int(new_image[6]), int(new_image[7])), color, thickness)
     cv2.circle(image, (int(x_middle), image.shape[0] - 20), radius=10, color=(0, 255, 0), thickness=-1)
-    return car_offset
+    return car_offset, angle
 
 
-# In[144]:
+# In[33]:
 
 
 def find_line_lane(image):
@@ -388,7 +392,7 @@ def find_line_lane(image):
 
     # thirs version, hsv mask
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    lower_white = np.array([0, 0, normal], dtype=np.uint8)
+    lower_white = np.array([0, 0, bright_low], dtype=np.uint8)
     upper_white = np.array([80, 80, 255], dtype=np.uint8)
     mask = cv2.inRange(hsv_image, lower_white, upper_white)
     t_image = cv2.bitwise_and(image, image, mask=mask)
@@ -426,55 +430,58 @@ def find_line_lane(image):
 #     io.imshow(roi_image)
     
     theta = np.pi / 180
-    line_image, car_offset = get_hough_lines(roi_image, 4, theta, 120, 20, 70)
-    result = add_weights(line_image, image, alpha=0.8, beta=1, lambd=0)
-    return car_offset
+    line_image, car_offset, angle = get_hough_lines(roi_image, 4, theta, 120, 20, 70)
+    relative_angle = (angle - car_direction) * 180 / np.pi
+#     print(relative_angle, ' degrees')
+#     result = add_weights(line_image, image, alpha=0.8, beta=1, lambd=0)
+    return car_offset, relative_angle
 #     return result
 
 
-# In[140]:
+# In[15]:
 
 
-# def get_image_point():
-#     line_lane_img = find_line_lane(image)
-#     plt.imshow(line_lane_img)
-#     plt.show()
+def get_image_point():
+    line_lane_img = find_line_lane(image)
+    plt.imshow(line_lane_img)
+    plt.show()
 # arg pars (--path_img. --path_folder) generate csv distanta centrul masinii spre centru drumului
 
 
-# In[146]:
+# In[16]:
 
 
 def get_car_offset():
-    offset_data = pd.DataFrame(columns=['Image', 'Car_offset'])
+    position_data = pd.DataFrame(columns=['Image', 'Car_offset (l.u.)', 'Relative angle (degrees)'])
     input_path = args.images
     try:
         if os.path.isfile(input_path):
             image = io.imread(input_path)
-            offset_data = offset_data.append({'Image': input_path, 'Car_offset': find_line_lane(image)}, 
-                                             ignore_index=True)
-            print(f'{input_path}: Distance to the center:{find_line_lane(image)} px')
+            position = find_line_lane(image)
+            position_data = position_data.append({'Image': input_path, 'Car_offset (l.u.)': position[0], 
+                                                  'Relative angle (degrees)': position[1]}, ignore_index=True)
+            print(f'{input_path}: Distance to the center:{position[0]} l.u. Relative angle: {position[1]}.')
         elif os.path.isdir(input_path):
             for image in os.listdir(input_path):
                 full_path = os.path.join(input_path, image)
-                offset_data = offset_data.append({'Image': full_path, 
-                                                  'Car_offset': find_line_lane(io.imread(full_path))}, 
-                                                 ignore_index=True)
-                print(f'{full_path}: Distance to the center:{find_line_lane(io.imread(full_path))} px')
+                position = find_line_lane(io.imread(full_path))
+                position_data = position_data.append({'Image': image, 'Car_offset (l.u.)': position[0], 
+                                                  'Relative angle (degrees)': position[1]}, ignore_index=True)
+                print(f'{full_path}: Distance to the center:{position[0]} l.u. Relative angle: {position[1]}.')
     except:
         print('Review "images" argument')
-    return offset_data
+    return position_data
 
 
-# In[80]:
+# In[23]:
 
 
 car_offset = get_car_offset()
 print(car_offset)
-car_offset.to_csv('middle_lane_dist.csv', index=False)
+car_offset.to_csv('car_position.csv', index=False)
 
 
-# In[145]:
+# In[34]:
 
 
 # get_image_point()
