@@ -4,8 +4,6 @@
 # In[1]:
 
 
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 from skimage import io, color, data
 from skimage.morphology import erosion, dilation
 import random
@@ -30,7 +28,6 @@ args = parser.parse_args()
 
 
 image = io.imread('images/test_image_9.png')
-plt.imshow(image)
 
 
 # In[2]:
@@ -68,7 +65,6 @@ def get_region_of_interest(edges, vertices):
         mask_color_ignore = 255
     cv2.fillPoly(img, vertices, mask_color_ignore)
     masked_image = cv2.bitwise_and(edges, img)
-#     io.imshow(img)
     return masked_image
 
 
@@ -85,8 +81,6 @@ def get_hough_lines(image, rho, theta, treshold, min_line_len, max_line_gap):
     for line in m_lines:
         merged_lines.append([[line[0][0], line[0][1], line[1][0], line[1][1]]])
     merged_lines = np.array(merged_lines)
-    # here the merge for multiple lines is run and I output their coordinates
-    # print('Merged lines:', merged_lines)
     car_offset, angle = draw_lines(line_img, merged_lines)
     return line_img, car_offset, angle
 
@@ -97,6 +91,7 @@ def get_hough_lines(image, rho, theta, treshold, min_line_len, max_line_gap):
 # here starts code for line merging
 def get_lines(lines_in):
     return [l[0] for l in lines_in]
+
 
 def process_lines(lines):
     for line in get_lines(lines):
@@ -147,9 +142,7 @@ def merge_lines_pipeline_2(lines):
                     orientation_i = math.atan2((line[0][1]-line[1][1]),(line[0][0]-line[1][0]))
                     orientation_j = math.atan2((line2[0][1]-line2[1][1]),(line2[0][0]-line2[1][0]))
 
-                    if int(abs(abs(math.degrees(orientation_i)) - abs(math.degrees(orientation_j)))) < min_angle_to_merge: 
-                        #print("angles", orientation_i, orientation_j)
-                        #print(int(abs(orientation_i - orientation_j)))
+                    if int(abs(abs(math.degrees(orientation_i)) - abs(math.degrees(orientation_j)))) < min_angle_to_merge:
                         group.append(line)
 
                         create_new_group = False
@@ -170,14 +163,9 @@ def merge_lines_pipeline_2(lines):
                     orientation_i = math.atan2((line[0][1]-line[1][1]),(line[0][0]-line[1][0]))
                     orientation_j = math.atan2((line2[0][1]-line2[1][1]),(line2[0][0]-line2[1][0]))
 
-                    if int(abs(abs(math.degrees(orientation_i)) - abs(math.degrees(orientation_j)))) < min_angle_to_merge: 
-                        #print("angles", orientation_i, orientation_j)
-                        #print(int(abs(orientation_i - orientation_j)))
-
+                    if int(abs(abs(math.degrees(orientation_i)) - abs(math.degrees(orientation_j)))) < min_angle_to_merge:
                         new_group.append(line2)
 
-                        # remove line from lines list
-                        #lines[idx] = False
             # append new group
             super_lines.append(new_group)
         
@@ -289,7 +277,6 @@ def get_distance(line1, line2):
     dist4 = DistancePointLine(line2[1][0], line2[1][1], 
                               line1[0][0], line1[0][1], line1[1][0], line1[1][1])
     
-    
     return min(dist1,dist2,dist3,dist4)
 
 
@@ -322,25 +309,11 @@ def draw_lines(image, lines, color=(255, 0, 0), thickness=10):
     if (slope_mean_left == 0) or (slope_mean_right == 0):
         print('Not possible dividing by zero')
         return 1
-# There was a code to calculate x coordinates in case of 2 lines are identified (the middle of the lane),
-# but since the line are merged, only 2 of them exists and I get the coordinates there
-#     x1_left = abs(int((first_shape - mean_left[0][1] - (slope_mean_left * mean_left[0][0])) / 
-#                       slope_mean_left))
-#     x2_left = abs(int((first_shape - mean_left[0][1] - (slope_mean_left * mean_left[0][0])) / 
-#                       slope_mean_left))
-#     x1_right = abs(int((first_shape - mean_right[0][1] - (slope_mean_right * mean_right[0][0])) / 
-#                        slope_mean_right))
-#     x2_right = abs(int((first_shape - mean_right[0][1] - (slope_mean_right * mean_right[0][0])) / 
-#                        slope_mean_right))
-    # just print the coordinates of resultant lines
-#     print(left_lane, right_lane)
     x1_left = np.int_(left_lane[0][0][0])
     x2_left = np.int_(left_lane[0][0][2])
     x1_right = np.int_(right_lane[0][0][0])
     x2_right = np.int_(right_lane[0][0][2])
-    
-#     print(first_shape, x1_left, x1_right, x2_left, x2_right)
-#     print(mean_left, mean_right, slope_mean_left, slope_mean_right)
+
     if x1_left < x1_right:
         x1_left = int((x1_left + x1_right) / 2)
         x1_right = x1_left
@@ -360,14 +333,8 @@ def draw_lines(image, lines, color=(255, 0, 0), thickness=10):
             abs(np.arctan2(y2_left - y1_left, x2_left - x1_left))) / 2
     
     new_image = np.array([x1_left, y1_left, x2_left, y2_left, x1_right, y1_right, x2_right, y2_right], dtype="float32")
-    # just to know final lines coordinates
-#     print(x1_left, y1_left, x2_left, y2_left, x1_right, y1_right, x2_right, y2_right)
-#     print('X_bottom', x2_right, x2_left, x2_right - x2_left)
     car_offset = np.int_(np.int_(image.shape[1])) / 2 - x_middle
 #     print('Car_offset:', car_offset, 'px')
-    cv2.line(image, (int(new_image[0]), int(new_image[1])), (int(new_image[2]), int(new_image[3])), color, thickness)
-    cv2.line(image, (int(new_image[4]), int(new_image[5])), (int(new_image[6]), int(new_image[7])), color, thickness)
-    cv2.circle(image, (int(x_middle), image.shape[0] - 20), radius=10, color=(0, 255, 0), thickness=-1)
     return car_offset, angle
 
 
@@ -377,44 +344,18 @@ def draw_lines(image, lines, color=(255, 0, 0), thickness=10):
 def find_line_lane(image):
     # transform to gray scale and hue scale
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    blur_gray_image = cv2.GaussianBlur(gray_image, (5, 5), 3) 
-#     io.imshow(t_image)
-    
-    # first version, mask gray_image
-#     white_mask = cv2.inRange(blur_gray_image, 170, 255)
-#     masked_image = cv2.bitwise_and(blur_gray_image, white_mask)
-#     blur_gray_image = cv2.GaussianBlur(blur_gray_image, (5, 5), 0)
+    blur_gray_image = cv2.GaussianBlur(gray_image, (5, 5), 3)
 
-    # second version, OTSU treshold
-#     ret, t_image = cv2.threshold(blur_gray_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    
-    
-
-    # thirs version, hsv mask
+    # this version, hsv mask
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     lower_white = np.array([0, 0, bright_low], dtype=np.uint8)
     upper_white = np.array([80, 80, 255], dtype=np.uint8)
     mask = cv2.inRange(hsv_image, lower_white, upper_white)
     t_image = cv2.bitwise_and(image, image, mask=mask)
-#     io.imshow(t_image)
-
-#     dilation
-#     dilated_image = dilation(t_image)
-#     eroded_image = erosion(dilated_image)
 
     # identify edges
     canny_edges = cv2.Canny(t_image, 50, 150, apertureSize=3)
-#     kernel = np.ones((7, 7), np.uint8)
-#     canny_edges = cv2.dilate(canny_edges, kernel, iterations=1)
-#     canny_edges = cv2.erode(canny_edges, kernel, iterations=1)
-#     io.imshow(canny_edges)
-    
-    # limit the zone of interest
-#     imshape = image.shape
-#     lower_left = [0, imshape[0]]
-#     lower_right = [imshape[1], imshape[0]]
-#     top_left = [imshape[1] / 2 - imshape[1] / 3, imshape[0] / 1.75 + imshape[0] / 10]
-#     top_right = [imshape[1] / 2 + imshape[1] / 3, imshape[0] / 1.75 + imshape[0] / 10]
+
     imshape = image.shape
     lower_left = [0, imshape[0]]
     lower_right = [imshape[1], imshape[0]]
@@ -423,32 +364,14 @@ def find_line_lane(image):
     
     # identify vertices
     vertices = [np.array([lower_left, top_left, top_right, lower_right], dtype=np.int32)]
-#     print('Vertices', vertices)
     
     # get region of interest image
     roi_image = get_region_of_interest(canny_edges, vertices)
-#     io.imshow(roi_image)
     
     theta = np.pi / 180
     line_image, car_offset, angle = get_hough_lines(roi_image, 4, theta, 120, 20, 70)
     relative_angle = (angle - car_direction) * 180 / np.pi
-#     print(relative_angle, ' degrees')
-#     result = add_weights(line_image, image, alpha=0.8, beta=1, lambd=0)
     return car_offset, relative_angle
-#     return result
-
-
-# In[15]:
-
-
-def get_image_point():
-    line_lane_img = find_line_lane(image)
-    plt.imshow(line_lane_img)
-    plt.show()
-# arg pars (--path_img. --path_folder) generate csv distanta centrul masinii spre centru drumului
-
-
-# In[16]:
 
 
 def get_car_offset():
@@ -473,22 +396,6 @@ def get_car_offset():
     return position_data
 
 
-# In[23]:
-
-
 car_offset = get_car_offset()
 print(car_offset)
 car_offset.to_csv('car_position.csv', index=False)
-
-
-# In[34]:
-
-
-# get_image_point()
-
-
-# In[ ]:
-
-
-
-
